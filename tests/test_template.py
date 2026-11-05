@@ -40,6 +40,7 @@ else:
     _m = _load_module(TEMPLATE_PATH, "template")
 
 # Import target functions
+call_deepseek = getattr(_m, "call_deepseek")
 call_openai = getattr(_m, "call_openai")
 call_gemini = getattr(_m, "call_gemini")
 call_anthropic = getattr(_m, "call_anthropic")
@@ -63,6 +64,10 @@ def _make_openai_response(text: str = "Hello from OpenAI"):
     usage.completion_tokens = 20
     resp.usage = usage
     return resp
+
+
+def _make_deepseek_response(text: str = "Hello from DeepSeek"):
+    return _make_openai_response(text)
 
 
 def _make_gemini_response(text: str = "Hello from Gemini"):
@@ -90,6 +95,42 @@ def _make_anthropic_response(text: str = "Hello from Anthropic"):
 # ---------------------------------------------------------------------------
 # Test Cases
 # ---------------------------------------------------------------------------
+class TestCallDeepSeek(unittest.TestCase):
+
+    @patch.object(_m, "OpenAI")
+    def test_deepseek_returns_tuple_structure_and_forwards_parameters(self, MockOpenAI):
+        mock_client = MagicMock()
+        MockOpenAI.return_value = mock_client
+        mock_client.chat.completions.create.return_value = _make_deepseek_response(
+            "DeepSeek Mock Response"
+        )
+
+        text, latency, usage = call_deepseek(
+            "Hello",
+            model="deepseek-chat",
+            temperature=0.2,
+            top_p=0.8,
+            max_tokens=128,
+        )
+
+        self.assertEqual(text, "DeepSeek Mock Response")
+        self.assertIsInstance(latency, float)
+        self.assertGreaterEqual(latency, 0.0)
+        self.assertEqual(usage["input_tokens"], 10)
+        self.assertEqual(usage["output_tokens"], 20)
+        MockOpenAI.assert_called_once_with(
+            api_key=os.getenv("DEEPSEEK_API_KEY"),
+            base_url="https://api.deepseek.com",
+        )
+        mock_client.chat.completions.create.assert_called_once_with(
+            model="deepseek-chat",
+            messages=[{"role": "user", "content": "Hello"}],
+            temperature=0.2,
+            top_p=0.8,
+            max_tokens=128,
+        )
+
+
 class TestCallOpenAI(unittest.TestCase):
 
     @patch("openai.OpenAI")
