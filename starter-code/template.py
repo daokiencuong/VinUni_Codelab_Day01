@@ -12,6 +12,11 @@ Instructions:
 import os
 import time
 from typing import Any, Callable
+from openai import OpenAI
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # ---------------------------------------------------------------------------
 # Estimated costs per 1M INPUT & OUTPUT tokens (USD) as of March 2026
@@ -31,7 +36,34 @@ OPENAI_MODEL = "gpt-4o"
 OPENAI_MINI_MODEL = "gpt-4o-mini"
 GEMINI_MODEL = "gemini-2.5-flash"
 ANTHROPIC_MODEL = "claude-3-5-haiku"
+DEEPSEEK_MODEL = "deepseek-flash"
 
+def call_deepseek(
+        prompt: str,
+        model: str = DEEPSEEK_MODEL,
+        temperature: float = 0.7,
+        top_p: float = 0.9,
+        max_tokens: int = 256,
+) -> tuple[str, float, dict]:
+    client = OpenAI(
+        api_key=os.getenv("DEEPSEEK_API_KEY"),
+        base_url="https://api.deepseek.com",
+    )
+    start_time = time.time()
+    response = client.chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
+    )
+    end_time = time.time()
+    latency = end_time - start_time
+    usage = {
+        "input_tokens": response.usage.prompt_tokens,
+        "output_tokens": response.usage.completion_tokens,
+    }
+    return response.choices[0].message.content, latency, usage
 
 # ---------------------------------------------------------------------------
 # Task 1 — Call OpenAI (GPT-4o)
