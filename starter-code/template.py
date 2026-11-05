@@ -138,21 +138,41 @@ def compare_models(prompt: str) -> dict:
 # Task 5 — Streaming chatbot with Gemini 2.5 (Focus Model)
 # ---------------------------------------------------------------------------
 def streaming_chatbot() -> None:
-    """
-    Run an interactive streaming chatbot in the terminal using Gemini 2.5.
+    client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+    history: list[dict[str, Any]] = []
 
-    Behaviour:
-        - Streams response tokens from Gemini 2.5 Flash as they arrive.
-        - Maintains the last 3 turns of conversation history for context.
-        - Typing 'quit' or 'exit' ends the session.
+    while True:
+        prompt = input("You: ").strip()
+        if prompt.lower() in {"quit", "exit"}:
+            print("Goodbye!")
+            return
+        if not prompt:
+            continue
 
-    Hints:
-        - Maintain a history list of conversation turns.
-        - Check how to stream responses using client.chats or model.generate_content(..., stream=True).
-        - Keep history limited to the last 3 turns to optimize context window and costs.
-    """
-    # TODO: Setup interactive session, prompt user for input, stream response, and update history.
-    raise NotImplementedError("Implement streaming_chatbot")
+        history.append({"role": "user", "parts": [{"text": prompt}]})
+        response_stream = client.models.generate_content_stream(
+            model=GEMINI_MODEL,
+            contents=history,
+            config=types.GenerateContentConfig(
+                temperature=0.7,
+                top_p=0.9,
+                max_output_tokens=256,
+            ),
+        )
+
+        response_parts: list[str] = []
+        print("Gemini: ", end="", flush=True)
+        for chunk in response_stream:
+            text = getattr(chunk, "text", None)
+            if text:
+                response_parts.append(text)
+                print(text, end="", flush=True)
+        print()
+
+        history.append(
+            {"role": "model", "parts": [{"text": "".join(response_parts)}]}
+        )
+        history = history[-6:]
 
 
 # ---------------------------------------------------------------------------
