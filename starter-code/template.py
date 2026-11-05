@@ -31,6 +31,7 @@ PRICING_1M_TOKENS = {
     "gemini-2.5-pro": {"input": 1.25, "output": 5.00},
     "claude-3-5-sonnet": {"input": 3.00, "output": 15.00},
     "claude-3-5-haiku": {"input": 0.80, "output": 4.00},
+    "deepseek-flash": {"input": 0.3, "output": 1.2},
 }
 
 # Standard Model Identifiers
@@ -61,6 +62,7 @@ def call_deepseek(
         temperature=temperature,
         top_p=top_p,
         max_tokens=max_tokens,
+        extra_body={"thinking": {"type": "disabled"}},
     )
     end_time = time.time()
     latency = end_time - start_time
@@ -80,14 +82,16 @@ def call_gemini(
     top_p: float = 0.9,
     max_tokens: int = 256,
 ) -> tuple[str, float, dict]:
-    client = genai.GenerativeAI(api_key=os.getenv("GOOGLE_API_KEY"))
+    client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
     start_time = time.time()
-    response = client.generate_content(
+    response = client.models.generate_content(
         model=model,
-        prompt=prompt,
-        temperature=temperature,
-        top_p=top_p,
-        max_output_tokens=max_tokens,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            temperature=temperature,
+            top_p=top_p,
+            max_output_tokens=max_tokens,
+        )
     )
     end_time = time.time()
     latency = end_time - start_time
