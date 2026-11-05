@@ -102,28 +102,36 @@ def call_gemini(
 # Task 4 — Compare Models (OpenAI GPT-4o vs OpenAI Mini vs Gemini 2.5 Flash)
 # ---------------------------------------------------------------------------
 def compare_models(prompt: str) -> dict:
-    """
-    Call OpenAI (gpt-4o), OpenAI Mini (gpt-4o-mini), and Gemini 2.5 Flash (gemini-2.5-flash)
-    with the same prompt and return a structured comparison dictionary.
+    def build_result(
+        model: str,
+        response: tuple[str, float, dict],
+    ) -> dict:
+        text, latency, usage = response
+        input_tokens = usage["input_tokens"]
+        output_tokens = usage["output_tokens"]
+        pricing = PRICING_1M_TOKENS[model]
+        cost = (
+            input_tokens * pricing["input"]
+            + output_tokens * pricing["output"]
+        ) / 1_000_000
+        return {
+            "response": text,
+            "latency": latency,
+            "cost": cost,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+        }
 
-    Calculate the exact USD token cost for input + output using the prices in PRICING_1M_TOKENS.
-
-    Args:
-        prompt: The user message to send to all models.
-
-    Returns:
-        A dictionary containing:
-            - "gpt4o": { "response": str, "latency": float, "cost": float, "input_tokens": int, "output_tokens": int }
-            - "gpt4o_mini": { "response": str, "latency": float, "cost": float, "input_tokens": int, "output_tokens": int }
-            - "gemini_flash": { "response": str, "latency": float, "cost": float, "input_tokens": int, "output_tokens": int }
-    """
-    # TODO: Call call_openai with default gpt-4o model
-    # TODO: Call call_openai with gpt-4o-mini model
-    # TODO: Call call_gemini with default gemini-2.5-flash model
-    # TODO: Calculate costs exactly based on input and output token counts using PRICING_1M_TOKENS
-    #       Formula: Cost = (input_tokens * input_rate_per_1M + output_tokens * output_rate_per_1M) / 1,000,000
-    # TODO: Assemble and return the comparison dictionary.
-    raise NotImplementedError("Implement compare_models")
+    return {
+        "deepseek": build_result(
+            DEEPSEEK_MODEL,
+            call_deepseek(prompt),
+        ),
+        "gemini_flash": build_result(
+            GEMINI_MODEL,
+            call_gemini(prompt),
+        ),
+    }
 
 
 # ---------------------------------------------------------------------------
