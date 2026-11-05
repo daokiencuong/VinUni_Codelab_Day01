@@ -31,6 +31,7 @@ PRICING_1M_TOKENS = {
     "gemini-2.5-pro": {"input": 1.25, "output": 5.00},
     "claude-3-5-sonnet": {"input": 3.00, "output": 15.00},
     "claude-3-5-haiku": {"input": 0.80, "output": 4.00},
+    "deepseek-flash": {"input": 0.3, "output": 1.2},
 }
 
 # Standard Model Identifiers
@@ -61,6 +62,7 @@ def call_deepseek(
         temperature=temperature,
         top_p=top_p,
         max_tokens=max_tokens,
+        extra_body={"thinking": {"type": "disabled"}},
     )
     end_time = time.time()
     latency = end_time - start_time
@@ -80,14 +82,16 @@ def call_gemini(
     top_p: float = 0.9,
     max_tokens: int = 256,
 ) -> tuple[str, float, dict]:
-    client = genai.GenerativeAI(api_key=os.getenv("GOOGLE_API_KEY"))
+    client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
     start_time = time.time()
-    response = client.generate_content(
+    response = client.models.generate_content(
         model=model,
-        prompt=prompt,
-        temperature=temperature,
-        top_p=top_p,
-        max_output_tokens=max_tokens,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            temperature=temperature,
+            top_p=top_p,
+            max_output_tokens=max_tokens,
+        )
     )
     end_time = time.time()
     latency = end_time - start_time
@@ -183,59 +187,68 @@ def retry_with_backoff(
     max_retries: int = 3,
     base_delay: float = 0.1,
 ) -> Any:
-    """
-    Call fn(). If it raises an exception, retry up to max_retries times
-    with exponential backoff (delay = base_delay * 2^attempt).
+    if max_retries < 0:
+        raise ValueError("max_retries must be non-negative")
+    if base_delay < 0:
+        raise ValueError("base_delay must be non-negative")
 
-    Args:
-        fn:          Zero-argument callable to execute.
-        max_retries: Maximum number of retry attempts.
-        base_delay:  Initial delay in seconds before the first retry.
-
-    Returns:
-        The return value of fn() on success.
-
-    Raises:
-        The last exception raised by fn() after all retries are exhausted.
-    """
-    # TODO: implement retry loop with exponential backoff
-    raise NotImplementedError("Implement retry_with_backoff")
+    for attempt in range(max_retries + 1):
+        try:
+            return fn()
+        except Exception:
+            if attempt == max_retries:
+                raise
+            time.sleep(base_delay * (2**attempt))
 
 
 # ---------------------------------------------------------------------------
 # Bonus Task B — Batch compare
 # ---------------------------------------------------------------------------
 def batch_compare(prompts: list[str]) -> list[dict]:
-    """
-    Run compare_models on each prompt in the list.
-
-    Args:
-        prompts: List of prompt strings.
-
-    Returns:
-        List of dicts, each being the compare_models result with an extra
-        key "prompt" containing the original prompt string.
-    """
-    # TODO: iterate over prompts, call compare_models, and inject the original "prompt".
-    raise NotImplementedError("Implement batch_compare")
+    results = []
+    for prompt in prompts:
+        comparison = compare_models(prompt)
+        comparison["prompt"] = prompt
+        results.append(comparison)
+    return results
 
 
 # ---------------------------------------------------------------------------
 # Bonus Task C — Format comparison table
 # ---------------------------------------------------------------------------
 def format_comparison_table(results: list[dict]) -> str:
-    """
-    Format a list of batch compare results as a readable Markdown table string.
+    headers = [
+        "Prompt",
+        "Model",
+        "Response (truncated)",
+        "Latency",
+        "Tokens (In/Out)",
+        "Cost (USD)",
+    ]
+    model_labels = {
+        "deepseek": "DeepSeek-Flash",
+        "gemini_flash": "Gemini-Flash",
+    }
 
-    Args:
-        results: List of dicts as returned by batch_compare.
-
-    Returns:
-        A beautiful Markdown table string with columns:
-        | Prompt | Model | Response (truncated) | Latency | Tokens (In/Out) | Cost (USD) |
-    """
-    # TODO: Build and return the formatted table string. Truncate response to 50 chars for clean display.
-    raise NotImplementedError("Implement format_comparison_table")
+    lines = [
+        "| " + " | ".join(headers) + " |",
+        "| " + " | ".join("---" for _ in headers) + " |",
+    ]
+    for result in results:
+        prompt = str(result.get("prompt", "")).replace("|", "\\|").replace("\n", " ")
+        for model, stats in result.items():
+            if model == "prompt":
+                continue
+            response = str(stats.get("response", "")).replace("|", "\\|").replace("\n", " ")
+            if len(response) > 50:
+                response = response[:47] + "..."
+            lines.append(
+                f"| {prompt} | {model_labels.get(model, model)} | {response} | "
+                f"{stats['latency']:.2f}s | "
+                f"{stats['input_tokens']}/{stats['output_tokens']} | "
+                f"${stats['cost']:.8f} |"
+            )
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
