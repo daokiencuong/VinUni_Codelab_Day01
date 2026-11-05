@@ -213,18 +213,38 @@ def batch_compare(prompts: list[str]) -> list[dict]:
 # Bonus Task C — Format comparison table
 # ---------------------------------------------------------------------------
 def format_comparison_table(results: list[dict]) -> str:
-    """
-    Format a list of batch compare results as a readable Markdown table string.
+    headers = [
+        "Prompt",
+        "Model",
+        "Response (truncated)",
+        "Latency",
+        "Tokens (In/Out)",
+        "Cost (USD)",
+    ]
+    model_labels = {
+        "deepseek": "DeepSeek-Flash",
+        "gemini_flash": "Gemini-Flash",
+    }
 
-    Args:
-        results: List of dicts as returned by batch_compare.
-
-    Returns:
-        A beautiful Markdown table string with columns:
-        | Prompt | Model | Response (truncated) | Latency | Tokens (In/Out) | Cost (USD) |
-    """
-    # TODO: Build and return the formatted table string. Truncate response to 50 chars for clean display.
-    raise NotImplementedError("Implement format_comparison_table")
+    lines = [
+        "| " + " | ".join(headers) + " |",
+        "| " + " | ".join("---" for _ in headers) + " |",
+    ]
+    for result in results:
+        prompt = str(result.get("prompt", "")).replace("|", "\\|").replace("\n", " ")
+        for model, stats in result.items():
+            if model == "prompt":
+                continue
+            response = str(stats.get("response", "")).replace("|", "\\|").replace("\n", " ")
+            if len(response) > 50:
+                response = response[:47] + "..."
+            lines.append(
+                f"| {prompt} | {model_labels.get(model, model)} | {response} | "
+                f"{stats['latency']:.2f}s | "
+                f"{stats['input_tokens']}/{stats['output_tokens']} | "
+                f"${stats['cost']:.8f} |"
+            )
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
